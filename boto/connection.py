@@ -381,7 +381,7 @@ class HTTPRequest(object):
         if 'Content-Length' not in self.headers:
             if 'Transfer-Encoding' not in self.headers or \
                     self.headers['Transfer-Encoding'] != 'chunked':
-                self.headers['Content-Length'] = str(len(self.body))
+                self.headers['Content-Length'] = len(self.body)
 
 
 class HTTPResponse(http_client.HTTPResponse):
@@ -726,7 +726,7 @@ class AWSAuthConnection(object):
 
         # Make sure the host is really just the host, not including
         # the port number
-        host = boto.utils.parse_host(host)
+        host = host.split(':', 1)[0]
 
         http_connection_kwargs = self.http_connection_kwargs.copy()
 
@@ -793,18 +793,18 @@ class AWSAuthConnection(object):
         else:
             sock = socket.create_connection((self.proxy, int(self.proxy_port)))
         boto.log.debug("Proxy connection: CONNECT %s HTTP/1.0\r\n", host)
-        sock.sendall("CONNECT %s HTTP/1.0\r\n" % host)
-        sock.sendall("User-Agent: %s\r\n" % UserAgent)
+        sock.sendall(bytes(("CONNECT %s HTTP/1.0\r\n" % host), "utf-8"))
+        sock.sendall(bytes(("User-Agent: %s\r\n" % UserAgent), "utf-8"))
         if self.proxy_user and self.proxy_pass:
             for k, v in self.get_proxy_auth_header().items():
-                sock.sendall("%s: %s\r\n" % (k, v))
+                sock.sendall(bytes("%s: %s\r\n" % (k, v), "utf-8"))
             # See discussion about this config option at
             # https://groups.google.com/forum/?fromgroups#!topic/boto-dev/teenFvOq2Cc
             if config.getbool('Boto', 'send_crlf_after_proxy_auth_headers', False):
-                sock.sendall("\r\n")
+                sock.sendall(bytes("\r\n", "utf-8"))
         else:
-            sock.sendall("\r\n")
-        resp = http_client.HTTPResponse(sock, strict=True, debuglevel=self.debug)
+            sock.sendall(bytes("\r\n", "utf-8"))
+        resp = http_client.HTTPResponse(sock, debuglevel=self.debug)
         resp.begin()
 
         if resp.status != 200:
@@ -931,8 +931,7 @@ class AWSAuthConnection(object):
                 # not include the port.
                 if 's3' not in self._required_auth_capability():
                     if not getattr(self, 'anon', False):
-                        if not request.headers.get('Host'):
-                            self.set_host_header(request)
+                        self.set_host_header(request)
                 boto.log.debug('Final headers: %s' % request.headers)
                 request.start_time = datetime.now()
                 if callable(sender):
